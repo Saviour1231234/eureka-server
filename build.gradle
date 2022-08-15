@@ -2,21 +2,66 @@ plugins {
 	id 'org.springframework.boot' version '2.7.2'
 	id 'io.spring.dependency-management' version '1.0.12.RELEASE'
 	id 'java'
+	id 'com.bmuschko.docker-remote-api' version '7.3.0'
+	id 'com.bmuschko.docker-spring-boot-application' version '7.3.0'
 }
 
 group = 'com.example'
 version = '0.0.1-SNAPSHOT'
-sourceCompatibility = '17'
+
 
 repositories {
 	mavenCentral()
 }
-
+ext {
+	set('springCloudVersion', "2021.0.3")
+}
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter'
+	implementation 'org.springframework.cloud:spring-cloud-starter'
+	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server'
+	implementation 'org.springframework.cloud:spring-cloud-starter-config:3.1.3'
+	implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap:3.1.3'
+	implementation 'org.springframework.retry:spring-retry:1.3.3'
+	implementation 'org.springframework.boot:spring-boot-starter-aop:2.7.2'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
+import com.bmuschko.gradle.docker.tasks.container.*;
+import com.bmuschko.gradle.docker.tasks.image.*;
 
+task removeContainer(type: DockerRemoveContainer){
+	force = true
+	containerId = 'discovery-service'
+	onError(ex -> print ex.getMessage())
+}
+
+task removeImage(type: DockerRemoveImage){
+	dependsOn removeContainer
+	force = true
+	targetImageId('bobrenok/discovery-service')
+	onError(ex -> print ex.getMessage())
+}
+
+docker {
+	dockerBuildImage {
+		dependsOn removeImage
+		dockerFile = null
+		images = ['bobrenok/discovery-service']
+	}
+}
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(11)
+	}
+}
+task("recreate"){
+	group 'docker'
+	dependsOn dockerBuildImage
+}
 tasks.named('test') {
 	useJUnitPlatform()
 }
